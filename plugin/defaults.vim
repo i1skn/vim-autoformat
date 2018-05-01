@@ -248,8 +248,73 @@ if !exists('g:formatdef_eslint_local')
     let g:formatdef_eslint_local = "g:BuildESLintLocalCmd()"
 endif
 
+" Setup ESLint_d local. Setup is done on formatter execution if ESLint_d and
+" corresponding config is found they are used, otherwise the formatter fails.
+" No windows support at the moment.
+if !exists('g:formatdef_eslint_d')
+    function! g:BuildESLintDLocalCmd()
+        let l:path = fnamemodify(expand('%'), ':p')
+        let l:ext = ".".expand('%:p:e')
+        let verbose = &verbose || g:autoformat_verbosemode == 1
+        if has('win32')
+            return "(>&2 echo 'ESLint not supported on win32')"
+        endif
+        " find formatter & config file
+        let l:prog = findfile('node_modules/.bin/eslint_d', l:path.";")
+        if empty(l:prog)
+            let l:prog = findfile('~/.npm-global/bin/eslint_d')
+            if empty(l:prog)
+                let l:prog = findfile('/usr/local/bin/eslint_d')
+            endif
+        endif
+
+        "initial
+        let l:cfg = findfile('.eslintrc.js', l:path.";")
+
+        if empty(l:cfg)
+            let l:cfg_fallbacks = [
+                \'.eslintrc.yaml',
+                \'.eslintrc.yml',
+                \'.eslintrc.json',
+                \'.eslintrc',
+            \]
+
+            for i in l:cfg_fallbacks
+                let l:tcfg = findfile(i, l:path.";")
+                if !empty(l:tcfg)
+                    break
+                endif
+            endfor
+
+            if !empty(l:tcfg)
+                let l:cfg = fnamemodify(l:tcfg, ":p")
+            else
+                let l:cfg = findfile('~/.eslintrc.js')
+                for i in l:cfg_fallbacks
+                    if !empty(l:cfg)
+                        break
+                    endif
+                    let l:cfg = findfile("~/".i)
+                endfor
+            endif
+        endif
+
+        if (empty(l:cfg) || empty(l:prog))
+            if verbose
+                return "(>&2 echo 'No local or global ESLint_d program and/or config found')"
+            endif
+            return
+        endif
+
+        return l:prog." -c ".l:cfg." --stdin --fix-to-stdout < ".l:path."; exit_code=$?; exit $exit_code"
+    endfunction
+    let g:formatdef_eslint_d_local = "g:BuildESLintDLocalCmd()"
+endif
+
+
 if !exists('g:formatters_javascript')
     let g:formatters_javascript = [
+                \ 'eslint_d_local',
                 \ 'eslint_local',
                 \ 'jsbeautify_javascript',
                 \ 'jscs',
